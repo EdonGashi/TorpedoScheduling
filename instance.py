@@ -1,4 +1,4 @@
-'''Provides utilities for parsing and modelling problem instances.'''
+'''Provides utilities for parsing and modeling problem instances.'''
 import re
 
 PROBLEM_PROPERTIES = [
@@ -48,7 +48,6 @@ class ConverterSchedule:
 
     def __repr__(self):
         return 'C {} {} {}'.format(self.schedule_id, self.time, self.max_sulf_level)
-
 
 class Instance:
     '''Models a problem instance.'''
@@ -111,24 +110,6 @@ class Instance:
     def get_properties(self):
         '''Returns the raw properties dictionary.'''
         return self._properties
-
-    def time_empty_for_bf(self, bf_id):
-        '''Returns the time a torpedo needs to be
-        at the empty buffer to handle a bf request.
-        '''
-        return self.bf_schedules[bf_id].time - self.tt_empty_buffer_to_bf
-
-    def time_empty_after_converter(self, converter_id):
-        '''Returns the time a torpedo is at the empty
-        buffer after handling a converter request.
-        '''
-        return self.converter_schedules[converter_id].time \
-            + self.dur_converter \
-            + self.tt_converter_to_empty_buffer
-
-    def get_interval(self, bf_id, converter_id):
-        '''Returns the interval for a torpedo schedule.'''
-        return (self.time_empty_for_bf(bf_id), self.time_empty_after_converter(converter_id))
 
     def __repr__(self):
         result = ''
