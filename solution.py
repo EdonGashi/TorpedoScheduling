@@ -1,11 +1,14 @@
 '''Solution modeling.'''
+from operator import attrgetter
 from instance import Instance
 
 
 class Schedule:
-    '''Models a feasible torpedo BF-Converter-Empty trip.'''
+    '''Caches a feasible torpedo BF-Converter-Empty trip.'''
 
     def __init__(self,
+                 bf_id,
+                 converter_id,
                  start_time,
                  end_time,
                  desulf_time,
@@ -13,6 +16,8 @@ class Schedule:
                  desulf_efficiency,
                  buffer_time,
                  buffer_duration):
+        self.bf_id = bf_id
+        self.converter_id = converter_id
         self.start_time = start_time
         self.end_time = end_time
         self.duration = end_time - start_time + 1
@@ -29,16 +34,34 @@ class Schedule:
         pass
 
 
+class ScheduleMap:
+    '''Caches all feasible paths for a converter schedule.'''
+
+    def __init__(self, sparse_list):
+        self.sparse_list = sparse_list
+        self.sorted_list = sorted([s for s in sparse_list if s is not None],
+                                  key=attrgetter('duration', 'desulf_efficiency'))
+        self.domain_size = len(self.sorted_list)
+        self.current_bf = -1
+
+    def constrain_domain(self, bf_id):
+        '''Indicate that bf_id is used somewhere else and narrow the domain.'''
+        if self.sparse_list[bf_id] is not None:
+            self.domain_size = max(0, self.domain_size - 1)
+        return self.domain_size
+
+    def undo_domain_constraint(self, bf_id):
+        '''Indicate that bf_id is freed and expand the domain.'''
+        if self.sparse_list[bf_id] is not None:
+            self.domain_size = self.domain_size + 1
+        return self.domain_size
+
+
 class Solution:
     '''Models a solution to a problem instance.'''
 
     def __init__(self, instance: Instance):
         self.instance = instance
-
-    def count_conflicts(self):
-        '''Count the number of conflicts in this solution.'''
-
-        pass
 
     def get_distance(self, bf_id, converter_id):
         '''Returns a schedule for a BF-Converter pair.
@@ -65,16 +88,21 @@ class Solution:
         if buffer_duration < 0:
             return None
         desulf_time = buffer_time + buffer_duration + instance.tt_full_buffer_to_desulf
-        return Schedule(start_time, end_time, desulf_time, desulf_duration,
-                        desulf_efficiency, buffer_time, buffer_duration)
+        return Schedule(bf_id, converter_id, start_time, end_time, desulf_time,
+                        desulf_duration, desulf_efficiency, buffer_time, buffer_duration)
 
-    def _create_adjacency_matrix(self):
+    def create_timeline(self):
+        '''Create an empty timeline for every time slot in the problem.'''
+        return [None for t in range(self.instance.get_latest_time() + 1)]
+
+    def create_adjacency_matrix(self):
+        '''Create a cxb matrix with all feasible path costs.'''
         converter_count = len(self.instance.converter_schedules)
         bf_count = len(self.instance.bf_schedules)
-        matrix = [[None for col in range(bf_count)]
-                  for row in range(converter_count)]
-        for i in range(converter_count):
-            row = matrix[i]
-            for j in range(bf_count):
-                interval = self.instance.get_interval(j, i)
-                row[j] = interval
+        matrix = [None for row in range(converter_count)]
+        for converter_id in range(converter_count):
+            sparse_list = [None for bf in range(bf_count)]
+            for bf_id in range(bf_count):
+                sparse_list[bf_id] = self.get_distance(bf_id, converter_id)
+            matrix[converter_id] = ScheduleMap(sparse_list)
+        return matrix

@@ -29,25 +29,26 @@ def camel_to_snake(name):
 class BFSchedule:
     '''Represents a blast furnace schedule.'''
 
-    def __init__(self, schedule_id, time, sulf_level):
-        self.schedule_id = schedule_id
+    def __init__(self, bf_id, time, sulf_level):
+        self.bf_id = bf_id
         self.time = time
         self.sulf_level = sulf_level
 
     def __repr__(self):
-        return 'BF {} {} {}'.format(self.schedule_id, self.time, self.sulf_level)
+        return 'BF {} {} {}'.format(self.bf_id, self.time, self.sulf_level)
 
 
 class ConverterSchedule:
     '''Represents a converter schedule.'''
 
-    def __init__(self, schedule_id, time, max_sulf_level):
-        self.schedule_id = schedule_id
+    def __init__(self, converter_id, time, max_sulf_level):
+        self.converter_id = converter_id
         self.time = time
         self.max_sulf_level = max_sulf_level
 
     def __repr__(self):
-        return 'C {} {} {}'.format(self.schedule_id, self.time, self.max_sulf_level)
+        return 'C {} {} {}'.format(self.converter_id, self.time, self.max_sulf_level)
+
 
 class Instance:
     '''Models a problem instance.'''
@@ -110,6 +111,14 @@ class Instance:
     def get_properties(self):
         '''Returns the raw properties dictionary.'''
         return self._properties
+
+    def get_latest_time(self):
+        '''Returns the latest timeslot for this instance.'''
+        max_converter = self.converter_schedules[-1].time \
+            + self.dur_converter + self.tt_converter_to_empty_buffer
+        max_emergency = self.bf_schedules[-1].time + \
+            self.tt_bf_emergency_pit_empty_buffer
+        return max(max_converter, max_emergency)
 
     def __repr__(self):
         result = ''
