@@ -27,7 +27,7 @@ def camel_to_snake(name):
 
 
 class BFSchedule:
-    '''Represents a blast furnace schedule'''
+    '''Represents a blast furnace schedule.'''
 
     def __init__(self, schedule_id, time, sulf_level):
         self.schedule_id = schedule_id
@@ -35,11 +35,11 @@ class BFSchedule:
         self.sulf_level = sulf_level
 
     def __repr__(self):
-        return f'BF {self.schedule_id} {self.time} {self.sulf_level}'
+        return 'BF {} {} {}'.format(self.schedule_id, self.time, self.sulf_level)
 
 
 class ConverterSchedule:
-    '''Represents a converter schedule'''
+    '''Represents a converter schedule.'''
 
     def __init__(self, schedule_id, time, max_sulf_level):
         self.schedule_id = schedule_id
@@ -47,7 +47,7 @@ class ConverterSchedule:
         self.max_sulf_level = max_sulf_level
 
     def __repr__(self):
-        return f'C {self.schedule_id} {self.time} {self.max_sulf_level}'
+        return 'C {} {} {}'.format(self.schedule_id, self.time, self.max_sulf_level)
 
 
 class Instance:
@@ -62,7 +62,7 @@ class Instance:
         properties = dict()
 
         def parse_tuple(expr):
-            '''Parse integers from string "X NUM NUM NUM"'''
+            '''Parse integers from string "X NUM NUM NUM".'''
             expr_list = expr.split()
             return (int(expr_list[1]), int(expr_list[2]), int(expr_list[3]))
 
@@ -80,6 +80,19 @@ class Instance:
         return Instance(properties)
 
     def __init__(self, properties):
+        # Init fields for static analysis.
+        self.dur_bf = 0
+        self.dur_desulf = 0
+        self.dur_converter = 0
+        self.nb_slots_full_buffer = 0
+        self.nb_slots_desulf = 0
+        self.nb_slots_converter = 0
+        self.tt_bf_to_full_buffer = 0
+        self.tt_full_buffer_to_desulf = 0
+        self.tt_desulf_to_converter = 0
+        self.tt_converter_to_empty_buffer = 0
+        self.tt_empty_buffer_to_bf = 0
+        self.tt_bf_emergency_pit_empty_buffer = 0
         props_dict = dict()
         for prop in PROBLEM_PROPERTIES + [BF_SCHEDULES, CONVERTER_SCHEDULES]:
             if prop not in properties:  # Check for missing properties
@@ -96,13 +109,31 @@ class Instance:
                                     for schedule_tuple in self.converter_schedules]
 
     def get_properties(self):
-        '''Returns the raw properties dictionary'''
+        '''Returns the raw properties dictionary.'''
         return self._properties
+
+    def time_empty_for_bf(self, bf_id):
+        '''Returns the time a torpedo needs to be
+        at the empty buffer to handle a bf request.
+        '''
+        return self.bf_schedules[bf_id].time - self.tt_empty_buffer_to_bf
+
+    def time_empty_after_converter(self, converter_id):
+        '''Returns the time a torpedo is at the empty
+        buffer after handling a converter request.
+        '''
+        return self.converter_schedules[converter_id].time \
+            + self.dur_converter \
+            + self.tt_converter_to_empty_buffer
+
+    def get_interval(self, bf_id, converter_id):
+        '''Returns the interval for a torpedo schedule.'''
+        return (self.time_empty_for_bf(bf_id), self.time_empty_after_converter(converter_id))
 
     def __repr__(self):
         result = ''
         for prop in PROBLEM_PROPERTIES:
-            result += f'{prop}={self._properties[prop]}\n'
+            result += '{}={}\n'.format(prop, self._properties[prop])
         for schedule in self.bf_schedules:
             result += repr(schedule) + '\n'
         for schedule in self.converter_schedules:
