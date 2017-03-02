@@ -1,8 +1,9 @@
 '''Program entry'''
 import sys
 import json
+import evaluator
 from instance import Instance
-from solution import Solver
+from solution import find_initial_solution
 
 
 def main(argv):
@@ -24,9 +25,11 @@ def main(argv):
                          indent=4, separators=(',', ': ')))
     elif command == 'initial_solution':
         problem_instance = _get_instance()
-        solver = Solver(problem_instance)
-        solution = solver.find_initial_solution()
-        print(solution[0])
+        (solution, _, matrix) = find_initial_solution(problem_instance)
+        print(solution)
+        print('Torpedo count: %d' % 1)
+        print('Desulf time: %d' %
+              evaluator.calculate_desulf_time(solution, matrix))
     else:
         print('Usage: arg1=command arg2=problem instance)')
         return
