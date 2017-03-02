@@ -1,6 +1,5 @@
 '''Provides utilities for parsing and modeling problem instances.'''
 import re
-from operator import attrgetter
 
 PROBLEM_PROPERTIES = [
     'durBF',
@@ -25,6 +24,15 @@ def camel_to_snake(name):
     '''Convert a string from camel case to snake case.'''
     expr = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', expr).lower()
+
+
+def sorted_efficiency(value):
+    '''Keeps values from 0 to 5, flips negative values and
+    adds 5 such that they always come after positive values
+    '''
+    if value < 0:
+        return 5 - value
+    return value
 
 
 class Schedule:
@@ -63,8 +71,9 @@ class ScheduleMap:
 
     def __init__(self, sparse_list):
         self.sparse_list = sparse_list
-        self.sorted_list = sorted([s for s in sparse_list if s is not None],
-                                  key=attrgetter('duration', 'desulf_efficiency'))
+        self.sorted_list = sorted(
+            [s for s in sparse_list if s is not None],
+            key=lambda s: (s.duration, sorted_efficiency(s.desulf_efficiency)))
         self.domain_size = len(self.sorted_list)
         self.current_bf = -1
 
