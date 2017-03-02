@@ -58,3 +58,20 @@ def find_initial_solution(instance: Instance):
             converter_id = converter_id + 1
 
     return (solution, stack, matrix)
+
+
+def create_timeline(instance: Instance, solution, matrix):
+    '''Create a timeline for each time slot of the
+    instance populated with schedules from the solution.
+    '''
+    timeline = instance.create_timeline()
+    for (bf_id, converter_id) in enumerate(solution):
+        if converter_id == -1:
+            (start, end) = instance.get_emergency_interval(bf_id)
+            for i in range(start, end + 1):
+                timeline[i].append(1)
+        else:
+            schedule = matrix[converter_id].sparse_list[bf_id]
+            for i in range(schedule.start_time, schedule.end_time + 1):
+                timeline[i].append(1)
+    return timeline

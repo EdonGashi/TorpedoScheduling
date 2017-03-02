@@ -3,7 +3,14 @@ import sys
 import json
 import evaluator
 from instance import Instance
-from solution import find_initial_solution
+from solution import find_initial_solution, create_timeline
+
+
+def _print_solution(torpedo_count, desulf_time, cost, gain):
+    print('Torpedo count: {}'.format(torpedo_count))
+    print('Desulf time: {}'.format(desulf_time))
+    print('Cost evaluation: {}'.format(cost))
+    print('Gain evaluation: {}'.format(gain))
 
 
 def main(argv):
@@ -26,10 +33,14 @@ def main(argv):
     elif command == 'initial_solution':
         problem_instance = _get_instance()
         (solution, _, matrix) = find_initial_solution(problem_instance)
-        print(solution)
-        print('Torpedo count: %d' % 1)
-        print('Desulf time: %d' %
-              evaluator.calculate_desulf_time(solution, matrix))
+        timeline = create_timeline(problem_instance, solution, matrix)
+        torpedo_count = evaluator.count_torpedoes(timeline)
+        desulf_time = evaluator.calculate_desulf_time(solution, matrix)
+        cost = evaluator.evaluate_solution(
+            problem_instance, torpedo_count, desulf_time)
+        gain = evaluator.evaluate_gain(torpedo_count, cost)
+        # print(solution)
+        _print_solution(torpedo_count, desulf_time, cost, gain)
     else:
         print('Usage: arg1=command arg2=problem instance)')
         return

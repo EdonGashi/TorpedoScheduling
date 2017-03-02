@@ -66,14 +66,20 @@ class Schedule:
         pass
 
 
+def _sort_value(schedule: Schedule, dur_desulf):
+    # Discourage large differences in sulfuration level.
+    ratio = [6, 4, 3, 0.5, 0.6, 1, 1.5, 2.5, 4]
+    return schedule.duration * ratio[4 + schedule.desulf_efficiency]
+
+
 class ScheduleMap:
     '''Caches all feasible paths for a converter schedule.'''
 
-    def __init__(self, sparse_list):
+    def __init__(self, sparse_list, dur_desulf):
         self.sparse_list = sparse_list
         self.sorted_list = sorted(
             [s for s in sparse_list if s is not None],
-            key=lambda s: (s.duration, sorted_efficiency(s.desulf_efficiency)))
+            key=lambda x: _sort_value(x, dur_desulf))
         self.domain_size = len(self.sorted_list)
         self.current_bf = -1
 
@@ -188,8 +194,8 @@ class Instance:
         end_time = c.time + self.dur_converter + \
             self.tt_converter_to_empty_buffer
         desulf_steps = bf.sulf_level - c.max_sulf_level
+        desulf_efficiency = -desulf_steps
         desulf_duration = desulf_steps * self.dur_desulf
-        desulf_efficiency = -desulf_duration
         if desulf_duration < 0:
             desulf_duration = 0
 
@@ -205,7 +211,15 @@ class Instance:
 
     def create_timeline(self):
         '''Create an empty timeline for every time slot in the problem.'''
-        return [None for t in range(self.get_latest_time() + 1)]
+        return [[] for t in range(self.get_latest_time() + 1)]
+
+    def get_emergency_interval(self, bf_id):
+        '''Gets the (start, end) interval of an
+        emergency run for the specified BF schedule.
+        '''
+        bf_schedule = self.bf_schedules[bf_id]
+        start = bf_schedule.time - self.tt_empty_buffer_to_bf
+        return (start, start + self.dur_bf + self.tt_bf_emergency_pit_empty_buffer)
 
     def create_adjacency_matrix(self):
         '''Create a cxb matrix with all feasible path costs.'''
@@ -216,7 +230,7 @@ class Instance:
             sparse_list = [None for bf in range(bf_count)]
             for bf_id in range(bf_count):
                 sparse_list[bf_id] = self.get_distance(bf_id, converter_id)
-            matrix[converter_id] = ScheduleMap(sparse_list)
+            matrix[converter_id] = ScheduleMap(sparse_list, self.dur_desulf)
         return matrix
 
     def get_latest_time(self):
