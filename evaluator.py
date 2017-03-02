@@ -8,9 +8,9 @@ def evaluate_solution(instance: Instance, torpedo_count, desulf_time):
         / (4 * len(instance.converter_schedules) * instance.dur_desulf)
 
 
-def evaluate_gain(torpedo_count, cost):
+def evaluate_gain(instance: Instance, cost):
     '''Evaluates gain'''
-    return torpedo_count + 1 - cost
+    return len(instance.bf_schedules) + 1 - cost
 
 
 def calculate_desulf_time(solution, matrix):

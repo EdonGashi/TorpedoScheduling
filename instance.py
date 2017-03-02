@@ -26,15 +26,6 @@ def camel_to_snake(name):
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', expr).lower()
 
 
-def sorted_efficiency(value):
-    '''Keeps values from 0 to 5, flips negative values and
-    adds 5 such that they always come after positive values
-    '''
-    if value < 0:
-        return 5 - value
-    return value
-
-
 class Schedule:
     '''Caches a feasible torpedo BF-Converter-Empty trip.'''
 
@@ -59,27 +50,19 @@ class Schedule:
         self.buffer_time = buffer_time
         self.buffer_duration = buffer_duration
 
-    def simulate(self, instance):
-        for t in range(self.start_time, self.end_time + 1):
 
-            pass
-        pass
-
-
-def _sort_value(schedule: Schedule, dur_desulf):
-    # Discourage large differences in sulfuration level.
-    ratio = [6, 4, 3, 0.5, 0.6, 1, 1.5, 2.5, 4]
-    return schedule.duration * ratio[4 + schedule.desulf_efficiency]
+def _sort_value(schedule: Schedule):
+    return (schedule.duration, schedule.desulf_efficiency)
 
 
 class ScheduleMap:
     '''Caches all feasible paths for a converter schedule.'''
 
-    def __init__(self, sparse_list, dur_desulf):
+    def __init__(self, sparse_list):
         self.sparse_list = sparse_list
         self.sorted_list = sorted(
             [s for s in sparse_list if s is not None],
-            key=lambda x: _sort_value(x, dur_desulf))
+            key=_sort_value)
         self.domain_size = len(self.sorted_list)
         self.current_bf = -1
 
@@ -230,7 +213,7 @@ class Instance:
             sparse_list = [None for bf in range(bf_count)]
             for bf_id in range(bf_count):
                 sparse_list[bf_id] = self.get_distance(bf_id, converter_id)
-            matrix[converter_id] = ScheduleMap(sparse_list, self.dur_desulf)
+            matrix[converter_id] = ScheduleMap(sparse_list)
         return matrix
 
     def get_latest_time(self):

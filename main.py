@@ -38,7 +38,7 @@ def main(argv):
         desulf_time = evaluator.calculate_desulf_time(solution, matrix)
         cost = evaluator.evaluate_solution(
             problem_instance, torpedo_count, desulf_time)
-        gain = evaluator.evaluate_gain(torpedo_count, cost)
+        gain = evaluator.evaluate_gain(problem_instance, cost)
         # print(solution)
         _print_solution(torpedo_count, desulf_time, cost, gain)
     else:
