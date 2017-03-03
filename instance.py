@@ -20,7 +20,7 @@ BF_SCHEDULES = 'bfSchedules'
 CONVERTER_SCHEDULES = 'converterSchedules'
 
 
-def camel_to_snake(name):
+def _camel_to_snake(name):
     '''Convert a string from camel case to snake case.'''
     expr = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', expr).lower()
@@ -34,25 +34,28 @@ class Schedule:
                  converter_id,
                  start_time,
                  end_time,
-                 desulf_time,
                  desulf_duration,
                  desulf_efficiency,
-                 buffer_time,
-                 buffer_duration):
+                 buffer_duration,
+                 converter_depart_delay,
+                 converter_early_arrival):
         self.bf_id = bf_id
         self.converter_id = converter_id
         self.start_time = start_time
         self.end_time = end_time
-        self.duration = end_time - start_time + 1
-        self.desulf_time = desulf_time
+        self.duration = end_time - start_time
         self.desulf_duration = desulf_duration
         self.desulf_efficiency = desulf_efficiency
-        self.buffer_time = buffer_time
         self.buffer_duration = buffer_duration
+        self.converter_depart_delay = converter_depart_delay
+        self.converter_early_arrival = converter_early_arrival
+
+
+_SORT_BIAS = [1.6, 1.4, 1.2, 1, 0.4, 0.6, 0.8, 1, 1]
 
 
 def _sort_value(schedule: Schedule):
-    return (schedule.duration, schedule.desulf_efficiency)
+    return schedule.duration
 
 
 class ScheduleMap:
@@ -75,7 +78,7 @@ class ScheduleMap:
     def undo_domain_constraint(self, bf_id):
         '''Indicate that bf_id is freed and expand the domain.'''
         if self.sparse_list[bf_id] is not None:
-            self.domain_size = self.domain_size + 1
+            self.domain_size += 1
         return self.domain_size
 
 
@@ -94,9 +97,11 @@ class _BFSchedule:
 class _ConverterSchedule:
     '''Represents a converter schedule.'''
 
-    def __init__(self, converter_id, time, max_sulf_level):
+    def __init__(self, converter_id, time, depart_delay, early_arrival, max_sulf_level):
         self.converter_id = converter_id
         self.time = time
+        self.depart_delay = depart_delay
+        self.early_arrival = early_arrival
         self.max_sulf_level = max_sulf_level
 
     def __repr__(self):
@@ -117,7 +122,7 @@ class Instance:
         def parse_tuple(expr):
             '''Parse integers from string "X NUM NUM NUM".'''
             expr_list = expr.split()
-            return (int(expr_list[1]), int(expr_list[2]), int(expr_list[3]))
+            return int(expr_list[1]), int(expr_list[2]), int(expr_list[3])
 
         for line in lines:
             if line.startswith('BF '):      # BF NUM NUM NUM
@@ -151,15 +156,38 @@ class Instance:
             if prop not in properties:  # Check for missing properties
                 raise Exception('Missing property %s' % prop)
             else:
-                setattr(self, camel_to_snake(prop), properties[prop])
+                setattr(self, _camel_to_snake(prop), properties[prop])
                 props_dict[prop] = properties[prop]
         self._properties = props_dict
 
         # Convert tuples to schedule objects
         self.bf_schedules = [_BFSchedule(*schedule_tuple)
                              for schedule_tuple in self.bf_schedules]
-        self.converter_schedules = [_ConverterSchedule(*schedule_tuple)
-                                    for schedule_tuple in self.converter_schedules]
+
+        self.converter_schedules = self._calculate_converter_schedules(
+            self.converter_schedules)
+
+    def _calculate_converter_schedules(self, schedules):
+        converter_schedules = [None for s in self.converter_schedules]
+        previous_t_depart = 0
+        previous_t_empty = 0
+        dur = self.dur_converter
+        tt_empty = self.tt_converter_to_empty_buffer
+        for converter_id, time, max_sulf_level in schedules:
+            depart_delay = 0
+            depart_time = time + dur
+
+            if previous_t_empty > depart_time:
+                depart_delay = previous_t_empty - depart_time
+                depart_time += depart_delay
+
+            early_arrival = max(0, time - previous_t_depart)
+            previous_t_depart = depart_time
+            previous_t_empty = depart_time + tt_empty
+            converter_schedule = _ConverterSchedule(
+                converter_id, time, depart_delay, early_arrival, max_sulf_level)
+            converter_schedules[converter_id] = converter_schedule
+        return converter_schedules
 
     def get_properties(self):
         '''Returns the raw properties dictionary.'''
@@ -175,7 +203,7 @@ class Instance:
             return None
         start_time = bf.time - self.tt_empty_buffer_to_bf
         end_time = c.time + self.dur_converter + \
-            self.tt_converter_to_empty_buffer
+            self.tt_converter_to_empty_buffer + c.depart_delay
         desulf_steps = bf.sulf_level - c.max_sulf_level
         desulf_efficiency = -desulf_steps
         desulf_duration = desulf_steps * self.dur_desulf
@@ -188,9 +216,11 @@ class Instance:
         buffer_duration = c.time - desulf_overhead - buffer_time
         if buffer_duration < 0:
             return None
-        desulf_time = buffer_time + buffer_duration + self.tt_full_buffer_to_desulf
-        return Schedule(bf_id, converter_id, start_time, end_time, desulf_time,
-                        desulf_duration, desulf_efficiency, buffer_time, buffer_duration)
+
+        early_arrival = min(buffer_duration, c.early_arrival)
+        buffer_duration -= early_arrival
+        return Schedule(bf_id, converter_id, start_time, end_time, desulf_duration,
+                        desulf_efficiency, buffer_duration, c.depart_delay, early_arrival)
 
     def create_timeline(self):
         '''Create an empty timeline for every time slot in the problem.'''
@@ -202,7 +232,7 @@ class Instance:
         '''
         bf_schedule = self.bf_schedules[bf_id]
         start = bf_schedule.time - self.tt_empty_buffer_to_bf
-        return (start, start + self.dur_bf + self.tt_bf_emergency_pit_empty_buffer)
+        return start, start + self.dur_bf + self.tt_bf_emergency_pit_empty_buffer
 
     def create_adjacency_matrix(self):
         '''Create a cxb matrix with all feasible path costs.'''
@@ -222,7 +252,7 @@ class Instance:
             + self.dur_converter + self.tt_converter_to_empty_buffer
         max_emergency = self.bf_schedules[-1].time + \
             self.tt_bf_emergency_pit_empty_buffer
-        return max(max_converter, max_emergency)
+        return max(max_converter, max_emergency) + 1
 
     def __repr__(self):
         result = ''

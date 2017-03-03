@@ -3,15 +3,30 @@ import sys
 import json
 import evaluator
 from instance import Instance
-from solution import find_initial_solution, create_timeline
+from solution import find_initial_solution
 
 
-def _print_solution(torpedo_count, desulf_time, cost, gain):
+def _print_solution(instance, solution, matrix):
+    timeline = evaluator.create_solution_timeline(instance, solution, matrix)
+    torpedo_count = evaluator.calculate_torpedo_count(timeline)
+    desulf_time = evaluator.calculate_desulf_time(solution, matrix)
+    total_time = evaluator.calculate_total_time(instance, solution, matrix)
+    conflicts, conflict_count, max_conflicts, conflict_map \
+        = evaluator.calculate_conflict_count(instance, timeline)
+    cost = evaluator.evaluate_solution(
+        instance, torpedo_count, desulf_time)
+    gain = evaluator.evaluate_gain(instance, cost)
     print('Torpedo count: {}'.format(torpedo_count))
     print('Desulf time: {}'.format(desulf_time))
+    print('Total time: {}'.format(total_time))
+    print('Conflict time slots: {}'.format(len(conflicts)))
+    print('Conflict count: {}'.format(conflict_count))
+    print('Highest conflict count: {}'.format(max_conflicts))
+    print('Conflict distribution: {}'.format(conflict_map))
     print('Cost evaluation: {}'.format(cost))
     print('Gain evaluation: {}'.format(gain))
-
+    # for conflict in conflicts:
+    #     print(conflict)
 
 def main(argv):
     '''Main entry, argv = [command, problem instance]'''
@@ -25,22 +40,19 @@ def main(argv):
             return Instance.parse(file.readlines())
 
     command = argv[0]
-    if command == 'echo_ins':   # Parse and echo same instance for tesing
+    if command == 'echo_ins':   # Parse and echo same instance for tesing.
         print(repr(_get_instance()))
     elif command == 'parse':    # Parse problem instance
         print(json.dumps(_get_instance().get_properties(),
                          indent=4, separators=(',', ': ')))
     elif command == 'initial_solution':
-        problem_instance = _get_instance()
-        (solution, _, matrix) = find_initial_solution(problem_instance)
-        timeline = create_timeline(problem_instance, solution, matrix)
-        torpedo_count = evaluator.count_torpedoes(timeline)
-        desulf_time = evaluator.calculate_desulf_time(solution, matrix)
-        cost = evaluator.evaluate_solution(
-            problem_instance, torpedo_count, desulf_time)
-        gain = evaluator.evaluate_gain(problem_instance, cost)
-        # print(solution)
-        _print_solution(torpedo_count, desulf_time, cost, gain)
+        instance = _get_instance()
+        solution, stack, matrix = find_initial_solution(instance)
+        _print_solution(instance, solution, matrix)
+    elif command == 'echo_converters':
+        instance = _get_instance()
+        for converter in instance.converter_schedules:
+            print(converter)
     else:
         print('Usage: arg1=command arg2=problem instance)')
         return
