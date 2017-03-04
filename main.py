@@ -63,7 +63,7 @@ def main(argv):
     elif command == 'echo_converters':
         instance = _get_instance()
         for converter in instance.converter_schedules:
-            print(converter)
+            print(converter.as_tuple())
     else:
         print('Usage: arg1=command arg2=problem instance)')
         return

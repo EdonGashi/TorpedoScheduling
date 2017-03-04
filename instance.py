@@ -97,15 +97,20 @@ class _BFSchedule:
 class _ConverterSchedule:
     '''Represents a converter schedule.'''
 
-    def __init__(self, converter_id, time, depart_delay, early_arrival, max_sulf_level):
+    def __init__(self, converter_id, time, depart_delay, min_early_arrival, max_sulf_level):
         self.converter_id = converter_id
         self.time = time
         self.depart_delay = depart_delay
-        self.early_arrival = early_arrival
+        self.min_early_arrival = min_early_arrival
         self.max_sulf_level = max_sulf_level
 
     def __repr__(self):
         return 'C {} {} {}'.format(self.converter_id, self.time, self.max_sulf_level)
+
+    def as_tuple(self):
+        '''Returns a tuple for the current object values.'''
+        return self.converter_id, self.time, self.depart_delay, \
+            self.min_early_arrival, self.max_sulf_level
 
 
 class Instance:
@@ -171,25 +176,37 @@ class Instance:
             self.dur_bf + self.tt_bf_emergency_pit_empty_buffer
 
     def _calculate_converter_schedules(self, schedules):
-        converter_schedules = [None for s in self.converter_schedules]
+        converter_schedules = [None for s in schedules]
         previous_t_depart = 0
         previous_t_empty = 0
         dur = self.dur_converter
+        tt_desulf_converter = self.tt_desulf_to_converter
         tt_empty = self.tt_converter_to_empty_buffer
         for converter_id, time, max_sulf_level in schedules:
             depart_delay = 0
             depart_time = time + dur
-
             if previous_t_empty > depart_time:
                 depart_delay = previous_t_empty - depart_time
                 depart_time += depart_delay
 
-            early_arrival = max(0, time - previous_t_depart)
             previous_t_depart = depart_time
             previous_t_empty = depart_time + tt_empty
             converter_schedule = _ConverterSchedule(
-                converter_id, time, depart_delay, early_arrival, max_sulf_level)
+                converter_id, time, depart_delay, 0, max_sulf_level)
             converter_schedules[converter_id] = converter_schedule
+
+        if len(converter_schedules) == 0:
+            return converter_schedules
+
+        current_time = converter_schedules[-1].time
+        pull = 0
+        for converter_id in range(len(converter_schedules) - 1, 0, -1):
+            previous_schedule = converter_schedules[converter_id]
+            pull = max(0, tt_desulf_converter -
+                       (current_time - previous_schedule.time))
+            previous_schedule.min_early_arrival = pull
+            current_time = previous_schedule.time - pull
+
         return converter_schedules
 
     def get_properties(self):
@@ -216,14 +233,14 @@ class Instance:
         buffer_time = bf.time + self.dur_bf + self.tt_bf_to_full_buffer
         desulf_overhead = self.tt_full_buffer_to_desulf \
             + desulf_duration + self.tt_desulf_to_converter
-        buffer_duration = c.time - desulf_overhead - buffer_time
+        buffer_duration = c.time - c.min_early_arrival - desulf_overhead - buffer_time
         if buffer_duration < 0:
             return None
 
-        early_arrival = min(buffer_duration, c.early_arrival)
-        buffer_duration -= early_arrival
+        # early_arrival = min(buffer_duration, c.early_arrival)
+        # buffer_duration -= early_arrival
         return Schedule(bf_id, converter_id, start_time, end_time, desulf_duration,
-                        desulf_efficiency, buffer_duration, c.depart_delay, early_arrival)
+                        desulf_efficiency, buffer_duration, c.depart_delay, c.min_early_arrival)
 
     def create_timeline(self):
         '''Create an empty timeline for every time slot in the problem.'''
