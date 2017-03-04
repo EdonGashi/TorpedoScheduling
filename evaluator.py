@@ -57,7 +57,7 @@ STATE_COUNT = 9
 
 def create_schedule_timeline(instance: Instance, schedule: Schedule):
     '''Returns a timeline for a single schedule.'''
-    timeline = [T_EMPTY_TO_BF for t in range(instance.tt_empty_buffer_to_bf)]\
+    timeline = [T_EMPTY_TO_BF for t in range(instance.tt_empty_buffer_to_bf)] \
         + [AT_BF for t in range(instance.dur_bf)] \
         + [T_BF_TO_FULL_BUFFER for t in range(instance.tt_bf_to_full_buffer)] \
         + [AT_FULL_BUFFER for t in range(schedule.buffer_duration)] \
@@ -118,7 +118,7 @@ def create_solution_timeline(instance: Instance, solution, matrix):
     timeline = instance.create_timeline()
     for bf_id, converter_id in enumerate(solution):
         if converter_id == -1:
-            start, end = instance.get_emergency_interval(bf_id)
+            start, end, _, _ = instance.get_emergency_interval(bf_id)
             for i in range(start, end + 1):
                 timeline[i].append((bf_id, EMERGENCY))
         else:
@@ -131,5 +131,110 @@ def create_solution_timeline(instance: Instance, solution, matrix):
     return timeline
 
 
-def serialize_schedule(instance: Instance, schedule, Schedule):
-    pass
+class _TorpedoRun:
+
+    @staticmethod
+    def compile(instance: Instance, schedule: Schedule, torpedo_id):
+        '''Calculates each step of a torpedo run.'''
+        bf = instance.bf_schedules[schedule.bf_id]
+        start_bf = bf.time
+        end_bf = bf.time + instance.dur_bf
+        start_full_buffer = end_bf + instance.tt_bf_to_full_buffer
+        end_full_buffer = start_full_buffer + schedule.buffer_duration
+        start_desulf = end_full_buffer + instance.tt_full_buffer_to_desulf
+        end_desulf = start_desulf + schedule.desulf_duration
+        start_converter = end_desulf + instance.tt_desulf_to_converter
+        end_converter = schedule.converter_early_arrival + start_converter \
+            + instance.dur_converter + schedule.converter_depart_delay
+        start_empty_buffer = end_converter + instance.tt_converter_to_empty_buffer
+        return _TorpedoRun(torpedo_id, schedule.bf_id, schedule.converter_id, start_bf,
+                           end_bf, start_full_buffer, end_full_buffer, start_desulf,
+                           end_desulf, start_converter, end_converter, start_empty_buffer, -1)
+
+    def __init__(self, torpedo_id, bf_id, converter_id, start_bf, end_bf,
+                 start_full_buffer, end_full_buffer, start_desulf, end_desulf,
+                 start_converter, end_converter, start_empty_buffer, end_empty_buffer):
+        self.torpedo_id = torpedo_id
+        self.bf_id = bf_id
+        self.converter_id = converter_id
+        self.start_bf = start_bf
+        self.end_bf = end_bf
+        self.start_full_buffer = start_full_buffer
+        self.end_full_buffer = end_full_buffer
+        self.start_desulf = start_desulf
+        self.end_desulf = end_desulf
+        self.start_converter = start_converter
+        self.end_converter = end_converter
+        self.start_empty_buffer = start_empty_buffer
+        self.end_empty_buffer = end_empty_buffer
+
+    def __repr__(self):
+        return 'idTorpedo={}\nidBF={}\nidConverter={}\nstartBF={}\nendBF={}\nstartFullBuffer={}\nendFullBuffer={}\nstartDesulf={}\nendDesulf={}\nstartConverter={}\nendConverter={}\nstartEmptyBuffer={}\nendEmptyBuffer={}\n' \
+            .format(self.torpedo_id, self.bf_id, self.converter_id, self.start_bf, self.end_bf,
+                    self.start_full_buffer, self.end_full_buffer, self.start_desulf, self.end_desulf,
+                    self.start_converter, self.end_converter, self.start_empty_buffer, self.end_empty_buffer)
+
+
+class _EmergencyTorpedoRun:
+
+    def __init__(self, torpedo_id, bf_id, start_bf, end_bf, start_empty_buffer, end_empty_buffer):
+        self.torpedo_id = torpedo_id
+        self.bf_id = bf_id
+        self.start_bf = start_bf
+        self.end_bf = end_bf
+        self.start_empty_buffer = start_empty_buffer
+        self.end_empty_buffer = end_empty_buffer
+
+    def __repr__(self):
+        return 'idTorpedo={}\nidBF={}\nidConverter=-1\nstartBF={}\nendBF={}\nstartEmptyBuffer={}\nendEmptyBuffer={}\n' \
+            .format(self.torpedo_id, self.bf_id, self.start_bf,
+                    self.end_bf, self.start_empty_buffer, self.end_empty_buffer)
+
+
+class _Torpedo:
+
+    def __init__(self, torpedo_id):
+        self.torpedo_id = torpedo_id
+        self.current_run = None
+
+
+def calculate_solution_runs(instance: Instance, solution, matrix):
+    '''Calculates the timeline for every schedule in the solution.'''
+    runs = []
+    torpedoes = []
+
+    def _get_idle_torpedo(time):
+        for torpedo in torpedoes:
+            if time >= torpedo.current_run.start_empty_buffer:
+                return torpedo
+        torpedo = _Torpedo(len(torpedoes))
+        torpedoes.append(torpedo)
+        return torpedo
+
+    for bf_id, converter_id in enumerate(solution):
+        if converter_id == -1:
+            start, end, start_bf, end_bf = instance.get_emergency_interval(
+                bf_id)
+            torpedo = _get_idle_torpedo(start)
+            if torpedo.current_run is not None:
+                torpedo.current_run.end_empty_buffer = start
+
+            run = _EmergencyTorpedoRun(
+                torpedo.torpedo_id, bf_id, start_bf, end_bf, end, -1)
+            torpedo.current_run = run
+            runs.append(run)
+        else:
+            schedule = matrix[converter_id].sparse_list[bf_id]
+            start = schedule.start_time
+            torpedo = _get_idle_torpedo(start)
+            if torpedo.current_run is not None:
+                torpedo.current_run.end_empty_buffer = start
+            run = _TorpedoRun.compile(instance, schedule, torpedo.torpedo_id)
+            torpedo.current_run = run
+            runs.append(run)
+
+    latest_time = instance.get_latest_time()
+    for torpedo in torpedoes:
+        torpedo.current_run.end_empty_buffer = latest_time
+
+    return runs, torpedoes

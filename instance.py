@@ -227,8 +227,8 @@ class Instance:
         return [[] for t in range(self.get_latest_time() + 1)]
 
     def get_emergency_interval(self, bf_id):
-        '''Gets the (start, end) interval of an
-        emergency run for the specified BF schedule.
+        '''Gets the timeline of an emergency
+        run for the specified BF schedule.
         '''
         bf_schedule = self.bf_schedules[bf_id]
         start = bf_schedule.time - self.tt_empty_buffer_to_bf
