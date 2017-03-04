@@ -26,10 +26,6 @@ def _print_solution(instance, solution, matrix):
     print('Conflict distribution: {}'.format(conflict_map))
     print('Cost evaluation: {}'.format(cost))
     print('Gain evaluation: {}'.format(gain))
-    # for i, t in enumerate(timeline[8000:8200]):
-    #    print(8000 + i, t)
-    # for conflict in conflicts:
-    #    print(conflict)
 
 
 def main(argv):
@@ -56,7 +52,8 @@ def main(argv):
     elif command == 'print_initial_solution':
         instance = _get_instance()
         solution, stack, matrix = find_initial_solution(instance)
-        runs, torpedoes = evaluator.calculate_solution_runs(instance, solution, matrix)
+        runs, torpedoes = evaluator.calculate_solution_runs(
+            instance, solution, matrix)
         print(os.path.basename(argv[1]))
         print('TeamsID=')
         print('nbTorpedoes={}'.format(len(torpedoes)))

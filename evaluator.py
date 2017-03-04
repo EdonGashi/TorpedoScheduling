@@ -27,7 +27,7 @@ def calculate_total_time(instance: Instance, solution, matrix):
     duration = 0
     for bf_id, converter_id in enumerate(solution):
         if converter_id == -1:
-            duration += instance.tt_bf_emergency_pit_empty_buffer
+            duration += instance.dur_emergency
         else:
             duration += matrix[converter_id].sparse_list[bf_id].duration
     return duration

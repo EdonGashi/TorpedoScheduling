@@ -167,6 +167,9 @@ class Instance:
         self.converter_schedules = self._calculate_converter_schedules(
             self.converter_schedules)
 
+        self.dur_emergency = self.tt_empty_buffer_to_bf + \
+            self.dur_bf + self.tt_bf_emergency_pit_empty_buffer
+
     def _calculate_converter_schedules(self, schedules):
         converter_schedules = [None for s in self.converter_schedules]
         previous_t_depart = 0
@@ -232,7 +235,7 @@ class Instance:
         '''
         bf_schedule = self.bf_schedules[bf_id]
         start = bf_schedule.time - self.tt_empty_buffer_to_bf
-        return start, start + self.dur_bf + self.tt_bf_emergency_pit_empty_buffer, \
+        return start, bf_schedule.time + self.dur_bf + self.tt_bf_emergency_pit_empty_buffer, \
             bf_schedule.time, bf_schedule.time + self.dur_bf
 
     def create_adjacency_matrix(self):
