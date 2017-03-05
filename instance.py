@@ -199,8 +199,7 @@ class Instance:
             return converter_schedules
 
         current_time = converter_schedules[-1].time
-        pull = 0
-        for converter_id in range(len(converter_schedules) - 1, 0, -1):
+        for converter_id in range(len(converter_schedules) - 2, 0, -1):
             previous_schedule = converter_schedules[converter_id]
             pull = max(0, tt_desulf_converter -
                        (current_time - previous_schedule.time))

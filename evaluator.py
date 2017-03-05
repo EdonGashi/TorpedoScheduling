@@ -55,6 +55,14 @@ T_CONVERTER_TO_EMPTY = 8
 STATE_COUNT = 9
 
 
+def create_emergency_timeline(instance: Instance, bf_id):
+    '''Returns a timeline for a single emergency schedule.'''
+    start, end, start_bf, end_bf = instance.get_emergency_interval(bf_id)
+    return start, [T_EMPTY_TO_BF for t in range(start, start_bf)] \
+        + [AT_BF for t in range(start_bf, end_bf)] \
+        + [EMERGENCY for t in range(end_bf, end)]
+
+
 def create_schedule_timeline(instance: Instance, schedule: Schedule):
     '''Returns a timeline for a single schedule.'''
     timeline = [T_EMPTY_TO_BF for t in range(instance.tt_empty_buffer_to_bf)] \
@@ -118,9 +126,12 @@ def create_solution_timeline(instance: Instance, solution, matrix):
     timeline = instance.create_timeline()
     for bf_id, converter_id in enumerate(solution):
         if converter_id == -1:
-            start, end, _, _ = instance.get_emergency_interval(bf_id)
-            for i in range(start, end + 1):
-                timeline[i].append((bf_id, EMERGENCY))
+            start_time, schedule_timeline = create_emergency_timeline(
+                instance, bf_id)
+            i = start_time
+            for state in schedule_timeline:
+                timeline[i].append((bf_id, state))
+                i += 1
         else:
             schedule = matrix[converter_id].sparse_list[bf_id]
             schedule_timeline = create_schedule_timeline(instance, schedule)
