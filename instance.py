@@ -67,7 +67,6 @@ class ScheduleMap:
             [s for s in sparse_list if s is not None],
             key=_sort_value)
         self.domain_size = len(self.sorted_list)
-        self.current_bf = -1
 
     def constrain_domain(self, bf_id):
         '''Indicate that bf_id is used somewhere else and narrow the domain.'''
@@ -177,7 +176,6 @@ class Instance:
 
     def _calculate_converter_schedules(self, schedules):
         converter_schedules = [None for s in schedules]
-        previous_t_depart = 0
         previous_t_empty = 0
         dur = self.dur_converter
         tt_desulf_converter = self.tt_desulf_to_converter
@@ -189,7 +187,6 @@ class Instance:
                 depart_delay = previous_t_empty - depart_time
                 depart_time += depart_delay
 
-            previous_t_depart = depart_time
             previous_t_empty = depart_time + tt_empty
             converter_schedule = _ConverterSchedule(
                 converter_id, time, depart_delay, 0, max_sulf_level)

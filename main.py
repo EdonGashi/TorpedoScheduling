@@ -47,11 +47,11 @@ def main(argv):
                          indent=4, separators=(',', ': ')))
     elif command == 'initial_solution':
         instance = _get_instance()
-        solution, stack, matrix = find_initial_solution(instance)
+        solution, matrix = find_initial_solution(instance)
         _print_solution(instance, solution, matrix)
     elif command == 'print_initial_solution':
         instance = _get_instance()
-        solution, stack, matrix = find_initial_solution(instance)
+        solution, matrix = find_initial_solution(instance)
         runs, torpedoes = evaluator.calculate_solution_runs(
             instance, solution, matrix)
         print(os.path.basename(argv[1]))
@@ -64,6 +64,11 @@ def main(argv):
         instance = _get_instance()
         for converter in instance.converter_schedules:
             print(converter.as_tuple())
+    elif command == 'echo_domain':
+        instance = _get_instance()
+        matrix = instance.create_adjacency_matrix()
+        for converter_id, schedule_map in enumerate(matrix):
+            print(converter_id, [(s.bf_id, s.duration) for s in schedule_map.sorted_list])
     else:
         print('Usage: arg1=command arg2=problem instance)')
         return
