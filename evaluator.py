@@ -1,4 +1,4 @@
-'''Evaluates solutions'''
+'''Evaluates solutions.'''
 from instance import Instance, Schedule
 
 
@@ -33,11 +33,13 @@ def calculate_total_time(instance: Instance, solution, matrix):
     return duration
 
 
-def calculate_torpedo_count(timeline):
+def calculate_torpedo_count(timeline, start=0, end=-1):
     '''Calculate the maximum number of torpedoes in a timeline.'''
     max_value = 0
-    for slot in timeline:
-        max_value = max(max_value, len(slot))
+    if end == -1:
+        end = len(timeline)
+    for time in range(start, end):
+        max_value = max(max_value, len(timeline[time]))
     return max_value
 
 
@@ -101,11 +103,13 @@ def calculate_conflict_count(instance: Instance, timeline, start=0, end=-1):
     conflicts = []
     conflict_count = 0
     max_conflicts = 0
+    max_torpedoes = 0
     conflict_map = [0 for t in range(STATE_COUNT)]
     if end < 0:
         end = len(timeline)
     for slot in range(start, end):
         time = timeline[slot]
+        max_torpedoes = max(max_torpedoes, len(time))
         time_conflict_count = 0
         state_counts = [0 for t in range(STATE_COUNT)]
         for _, state in time:
@@ -119,7 +123,7 @@ def calculate_conflict_count(instance: Instance, timeline, start=0, end=-1):
             max_conflicts = max(max_conflicts, time_conflict_count)
             conflict_count += time_conflict_count
             conflicts.append((slot, time))
-    return conflicts, conflict_count, max_conflicts, conflict_map
+    return conflicts, conflict_count, max_conflicts, conflict_map, max_torpedoes
 
 
 def create_solution_timeline(instance: Instance, solution, matrix):

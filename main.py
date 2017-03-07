@@ -1,18 +1,17 @@
 '''Program entry'''
 import sys
 import json
-import evaluator
 import os.path
+import evaluator
 from instance import Instance
 from solution import find_initial_solution
 
 
 def _print_solution(instance, solution, matrix):
     timeline = evaluator.create_solution_timeline(instance, solution, matrix)
-    torpedo_count = evaluator.calculate_torpedo_count(timeline)
     desulf_time = evaluator.calculate_desulf_time(solution, matrix)
     total_time = evaluator.calculate_total_time(instance, solution, matrix)
-    conflicts, conflict_count, max_conflicts, conflict_map \
+    conflicts, conflict_count, max_conflicts, conflict_map, torpedo_count \
         = evaluator.calculate_conflict_count(instance, timeline)
     cost = evaluator.evaluate_solution(
         instance, torpedo_count, desulf_time)
@@ -26,6 +25,14 @@ def _print_solution(instance, solution, matrix):
     print('Conflict distribution: {}'.format(conflict_map))
     print('Cost evaluation: {}'.format(cost))
     print('Gain evaluation: {}'.format(gain))
+    # bf_set = set()
+    # for conflict in conflicts:
+    #     print(conflict)
+    #     for time in conflict[1]:
+    #         bf_set.add(time[0])
+    # for bf_id in bf_set:
+    #     print(bf_id, matrix[solution[bf_id]].sparse_list[bf_id].buffer_duration, solution[bf_id])
+
 
 
 def main(argv):
@@ -68,7 +75,8 @@ def main(argv):
         instance = _get_instance()
         matrix = instance.create_adjacency_matrix()
         for converter_id, schedule_map in enumerate(matrix):
-            print(converter_id, [(s.bf_id, s.duration) for s in schedule_map.sorted_list])
+            print(converter_id, [(s.bf_id, s.duration)
+                                 for s in schedule_map.sorted_list])
     else:
         print('Usage: arg1=command arg2=problem instance)')
         return
