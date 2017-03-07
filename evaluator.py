@@ -95,14 +95,17 @@ def get_state_constraints(instance: Instance):
     return max_states
 
 
-def calculate_conflict_count(instance: Instance, timeline):
+def calculate_conflict_count(instance: Instance, timeline, start=0, end=-1):
     '''Calculate total conflict count for a solution timeline.'''
     max_states = get_state_constraints(instance)
     conflicts = []
     conflict_count = 0
     max_conflicts = 0
     conflict_map = [0 for t in range(STATE_COUNT)]
-    for slot, time in enumerate(timeline):
+    if end < 0:
+        end = len(timeline)
+    for slot in range(start, end):
+        time = timeline[slot]
         time_conflict_count = 0
         state_counts = [0 for t in range(STATE_COUNT)]
         for _, state in time:

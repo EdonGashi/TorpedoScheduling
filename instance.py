@@ -38,7 +38,8 @@ class Schedule:
                  desulf_efficiency,
                  buffer_duration,
                  converter_depart_delay,
-                 converter_early_arrival):
+                 converter_early_arrival,
+                 is_pullable):
         self.bf_id = bf_id
         self.converter_id = converter_id
         self.start_time = start_time
@@ -49,6 +50,7 @@ class Schedule:
         self.buffer_duration = buffer_duration
         self.converter_depart_delay = converter_depart_delay
         self.converter_early_arrival = converter_early_arrival
+        self.is_pullable = is_pullable
 
 
 _SORT_BIAS = [1.6, 1.4, 1.2, 1, 0.4, 0.6, 0.8, 1, 1]
@@ -229,14 +231,21 @@ class Instance:
         buffer_time = bf.time + self.dur_bf + self.tt_bf_to_full_buffer
         desulf_overhead = self.tt_full_buffer_to_desulf \
             + desulf_duration + self.tt_desulf_to_converter
-        buffer_duration = c.time - c.min_early_arrival - desulf_overhead - buffer_time
+        buffer_duration = c.time - desulf_overhead - buffer_time
         if buffer_duration < 0:
             return None
 
+        is_pullable = False
+        early_arrival = 0
+        if buffer_duration >= c.min_early_arrival:
+            is_pullable = True
+            early_arrival = c.min_early_arrival
+            buffer_duration -= early_arrival
         # early_arrival = min(buffer_duration, c.early_arrival)
         # buffer_duration -= early_arrival
         return Schedule(bf_id, converter_id, start_time, end_time, desulf_duration,
-                        desulf_efficiency, buffer_duration, c.depart_delay, c.min_early_arrival)
+                        desulf_efficiency, buffer_duration,
+                        c.depart_delay, early_arrival, is_pullable)
 
     def create_timeline(self):
         '''Create an empty timeline for every time slot in the problem.'''
@@ -262,6 +271,13 @@ class Instance:
                 sparse_list[bf_id] = self.get_distance(bf_id, converter_id)
             matrix[converter_id] = ScheduleMap(sparse_list)
         return matrix
+
+    def create_schedule_map(self, converter_id):
+        bf_count = len(self.bf_schedules)
+        sparse_list = [None for bf in range(bf_count)]
+        for bf_id in range(bf_count):
+            sparse_list[bf_id] = self.get_distance(bf_id, converter_id)
+        return ScheduleMap(sparse_list)
 
     def get_latest_time(self):
         '''Returns the latest timeslot for this instance.'''
