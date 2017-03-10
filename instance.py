@@ -51,6 +51,7 @@ class Schedule:
         self.converter_depart_delay = converter_depart_delay
         self.converter_early_arrival = converter_early_arrival
         self.is_pullable = is_pullable
+        self.index = -1
 
 
 _SORT_BIAS = [1.6, 1.4, 1.2, 1, 0.4, 0.6, 0.8, 1, 1]
@@ -63,12 +64,16 @@ def _sort_value(schedule: Schedule):
 class ScheduleMap:
     '''Caches all feasible paths for a converter schedule.'''
 
-    def __init__(self, sparse_list):
+    def __init__(self, converter_id, sparse_list):
         self.sparse_list = sparse_list
         self.sorted_list = sorted(
-            [s for s in sparse_list if s is not None],
+            [schedule for schedule in sparse_list if schedule is not None],
             key=_sort_value)
         self.domain_size = len(self.sorted_list)
+        self.converter_id = converter_id
+        self.current_index = -1
+        for index, schedule in enumerate(self.sorted_list):
+            schedule.index = index
 
     def constrain_domain(self, bf_id):
         '''Indicate that bf_id is used somewhere else and narrow the domain.'''
@@ -269,7 +274,7 @@ class Instance:
             sparse_list = [None for bf in range(bf_count)]
             for bf_id in range(bf_count):
                 sparse_list[bf_id] = self.get_distance(bf_id, converter_id)
-            matrix[converter_id] = ScheduleMap(sparse_list)
+            matrix[converter_id] = ScheduleMap(converter_id, sparse_list)
         return matrix
 
     def create_schedule_map(self, converter_id):
@@ -277,7 +282,7 @@ class Instance:
         sparse_list = [None for bf in range(bf_count)]
         for bf_id in range(bf_count):
             sparse_list[bf_id] = self.get_distance(bf_id, converter_id)
-        return ScheduleMap(sparse_list)
+        return ScheduleMap(converter_id, sparse_list)
 
     def get_latest_time(self):
         '''Returns the latest timeslot for this instance.'''

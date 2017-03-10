@@ -1,12 +1,190 @@
 '''Solution modeling.'''
 from instance import Instance
-from evaluator import create_solution_timeline, calculate_conflict_count
+from evaluator import *
 
 
-def optimize(instance: Instance, solution, matrix, runs):
-    timeline = create_solution_timeline(instance, solution, matrix)
+class ConflictTimeline:
+    '''Maintains and mutates a conflict timeline.'''
 
-    pass
+    @staticmethod
+    def create(instance: Instance, solution, matrix):
+        '''Create a timeline with state distribution
+        for each time slot of the instance.
+        '''
+        timeline = timeline = [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+                               for t in range(instance.get_latest_time() + 1)]
+        for bf_id, converter_id in enumerate(solution):
+            if converter_id == -1:
+                start_time, schedule_timeline \
+                    = create_emergency_timeline(instance, bf_id)
+                i = start_time
+                for state in schedule_timeline:
+                    timeline[i][state] += 1
+                    i += 1
+            else:
+                schedule = matrix[converter_id].sparse_list[bf_id]
+                schedule_timeline \
+                    = create_schedule_timeline(instance, schedule)
+                i = schedule.start_time
+                for state in schedule_timeline:
+                    timeline[i][state] += 1
+                    i += 1
+        return ConflictTimeline(instance, timeline)
+
+    def __init__(self, instance: Instance, timeline):
+        self.instance = instance
+        self.timeline = timeline
+        self.max_states = get_state_constraints(instance)
+
+    def count_conflicts(self, start=0, end=-1):
+        '''Calculate conflict distribution and torpedo count for a timeline.'''
+        timeline = self.timeline
+        max_states = self.max_states
+        max_torpedoes = 0
+        conflict_map = [0 for t in range(STATE_COUNT)]
+        if end < 0:
+            end = len(timeline)
+        for slot in range(start, end):
+            time = timeline[slot]
+            max_torpedoes = max(max_torpedoes, sum(time))
+            for i, max_state in enumerate(max_states):
+                if time[i] > max_state:
+                    conflict_map[i] += 1
+        return conflict_map, max_torpedoes
+
+    def add(self, time, state_list):
+        timeline = self.timeline
+        for state in state_list:
+            timeline[time][state] += 1
+            time += 1
+
+    def subtract(self, time, state_list):
+        timeline = self.timeline
+        for state in state_list:
+            timeline[time][state] -= 1
+            time += 1
+
+
+def hill_climb(instance: Instance, solution, matrix, max_lookahead=32):
+    '''Minimizes desulf duration without causing new conflicts.'''
+    timeline = ConflictTimeline.create(instance, solution, matrix)
+
+    def _is_feasible(conflict_map, new_conflict_map, max_torpedoes, new_max_torpedoes):
+        if new_max_torpedoes > max_torpedoes:
+            return False
+        for i, state in enumerate(new_conflict_map):
+            if state > conflict_map[i]:
+                return False
+        return True
+
+    def _try_update_timeline(c1, tc1, n1, tn1, c2, tc2, n2, tn2):
+        ec1, en1, ec2, en2 = tc1 + \
+            len(c1), tn1 + len(n1), tc2 + len(c2), tn2 + len(n2)
+
+        def _count_conflicts():
+            return [timeline.count_conflicts(tc1, ec1),
+                    timeline.count_conflicts(tn1, en1),
+                    timeline.count_conflicts(tc2, ec2),
+                    timeline.count_conflicts(tn2, en2)]
+
+        state_before = _count_conflicts()
+        timeline.subtract(tc1, c1)
+        timeline.subtract(tc2, c2)
+        timeline.add(tn1, n1)
+        timeline.add(tn2, n2)
+        state_after = _count_conflicts()
+
+        def _check_feasibility():
+            for i, (new_conflicts, new_torpedoes) in enumerate(state_after):
+                conflicts, torpedoes = state_before[i]
+                if not _is_feasible(conflicts, new_conflicts, torpedoes, new_torpedoes):
+                    return False
+            return True
+
+        if _check_feasibility():
+            return True
+        else:
+            timeline.add(tc1, c1)
+            timeline.add(tc2, c2)
+            timeline.subtract(tn1, n1)
+            timeline.subtract(tn2, n2)
+            return False
+
+    def _try_swap_emergency(curr1, new1):
+        c1 = create_schedule_timeline(instance, curr1)
+        n1 = create_schedule_timeline(instance, new1)
+        tc2, c2 = create_emergency_timeline(instance, new1.bf_id)
+        tn2, n2 = create_emergency_timeline(instance, curr1.bf_id)
+        if _try_update_timeline(c1, curr1.start_time, n1, new1.start_time,
+                                c2, tc2, n2, tn2):
+            solution[curr1.bf_id] = -1
+            solution[new1.bf_id] = curr1.converter_id
+            return True
+        else:
+            return False
+
+    def _try_swap(curr1, new1):
+        if curr1 is new1 or not new1.is_pullable:
+            return False
+
+        gain1 = curr1.desulf_duration - new1.desulf_duration
+        converter1 = curr1.converter_id
+        converter2 = solution[new1.bf_id]
+        schedule_map2 = matrix[converter2]
+        if converter2 == -1:
+            if gain1 <= 0:
+                return False
+            return _try_swap_emergency(curr1, new1)
+
+        new2 = schedule_map2.sparse_list[curr1.bf_id]
+        if new2 is None or not new2.is_pullable:
+            return False
+
+        curr2 = schedule_map2.sparse_list[new1.bf_id]
+        gain2 = curr2.desulf_duration - new2.desulf_duration
+        if gain1 + gain2 <= 0:
+            return False
+
+        c1 = create_schedule_timeline(instance, curr1)
+        n1 = create_schedule_timeline(instance, new1)
+        c2 = create_schedule_timeline(instance, curr2)
+        n2 = create_schedule_timeline(instance, new2)
+        if _try_update_timeline(c1, curr1.start_time, n1, new1.start_time,
+                                c2, curr2.start_time, n2, new2.start_time):
+            solution[curr1.bf_id] = converter2
+            solution[new1.bf_id] = converter1
+            schedule_map2.current_index = new2.index
+            return True
+        else:
+            return False
+
+    lookahead = 1
+    max_lookahead = min(len(instance.bf_schedules) - 1, max_lookahead)
+    loop = True
+    while loop:
+        while True:
+            updates = 0
+            for schedule_map in matrix:
+                domain = schedule_map.sorted_list
+                domain_size = len(domain)
+                current_index = schedule_map.current_index
+                current_schedule = domain[current_index]
+                for index in range(current_index + 1,
+                                   min(domain_size, current_index + 1 + lookahead)):
+                    schedule = domain[index]
+                    if _try_swap(current_schedule, schedule):
+                        schedule_map.current_index = index
+                        updates += 1
+                        break
+
+            if updates == 0:
+                break
+
+        if lookahead == max_lookahead:
+            loop = False
+        lookahead *= 2
+        if lookahead > max_lookahead:
+            lookahead = max_lookahead
 
 
 def find_initial_solution(instance: Instance):
@@ -46,6 +224,7 @@ def find_initial_solution(instance: Instance):
 
             solution[bf_id] = converter_id
             stack[i] = bf_id, feasible_bf
+            schedule_map.current_index = feasible_bf
             is_feasible = True
             break
 
@@ -64,12 +243,13 @@ def find_initial_solution(instance: Instance):
             matrix[converter_id] = instance.create_schedule_map(converter_id)
             matrix[next_converter_id] = instance.create_schedule_map(
                 next_converter_id)
+            solution[stack[i - 1][0]] = -1
+            stack[i - 1] = None
+            i -= 1
             continue
-
-        if not is_feasible:
+        elif not is_feasible:
             raise Exception(
                 'No feasible solution found at converter {}.'.format(converter_id))
 
         i += 1
-
     return solution, matrix

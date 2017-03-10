@@ -4,7 +4,7 @@ import json
 import os.path
 import evaluator
 from instance import Instance
-from solution import find_initial_solution
+from solution import find_initial_solution, hill_climb
 
 
 def _print_solution(instance, solution, matrix):
@@ -26,6 +26,8 @@ def _print_solution(instance, solution, matrix):
     print('Cost evaluation: {}'.format(cost))
     print('Gain evaluation: {}'.format(gain))
     # bf_set = set()
+    # for bf, c in enumerate(solution):
+    #     print ('BF=', bf, 'C=', c)
     # for conflict in conflicts:
     #     print(conflict)
     #     for time in conflict[1]:
@@ -52,6 +54,13 @@ def main(argv):
     elif command == 'parse':    # Parse problem instance
         print(json.dumps(_get_instance().get_properties(),
                          indent=4, separators=(',', ': ')))
+    elif command == 'solution':
+        instance = _get_instance()
+        solution, matrix = find_initial_solution(instance)
+        _print_solution(instance, solution, matrix)
+        print('\nOptimizing solution...\n')
+        hill_climb(instance, solution, matrix)
+        _print_solution(instance, solution, matrix)
     elif command == 'initial_solution':
         instance = _get_instance()
         solution, matrix = find_initial_solution(instance)
