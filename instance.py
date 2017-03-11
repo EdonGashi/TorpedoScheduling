@@ -87,6 +87,12 @@ class ScheduleMap:
             self.domain_size += 1
         return self.domain_size
 
+    def get_current_schedule(self):
+        '''Get current schedule or None if it is not yet assigned.'''
+        if self.current_index == -1:
+            return None
+        return self.sorted_list[self.current_index]
+
 
 class _BFSchedule:
     '''Represents a blast furnace schedule.'''

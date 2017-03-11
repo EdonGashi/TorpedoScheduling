@@ -4,37 +4,20 @@ import json
 import os.path
 import evaluator
 from instance import Instance
-from solution import find_initial_solution, hill_climb
+from solution import find_initial_solution, hill_climb, ConflictTimeline, resolve_conflicts
 
 
-def _print_solution(instance, solution, matrix):
-    timeline = evaluator.create_solution_timeline(instance, solution, matrix)
+def _print_solution(instance, solution, matrix, timeline, conflicts, torpedo_count):
     desulf_time = evaluator.calculate_desulf_time(solution, matrix)
     total_time = evaluator.calculate_total_time(instance, solution, matrix)
-    conflicts, conflict_count, max_conflicts, conflict_map, torpedo_count \
-        = evaluator.calculate_conflict_count(instance, timeline)
-    cost = evaluator.evaluate_solution(
-        instance, torpedo_count, desulf_time)
+    cost = evaluator.evaluate_solution(instance, torpedo_count, desulf_time)
     gain = evaluator.evaluate_gain(instance, cost)
     print('Torpedo count: {}'.format(torpedo_count))
     print('Desulf time: {}'.format(desulf_time))
     print('Total time: {}'.format(total_time))
-    print('Conflict time slots: {}'.format(len(conflicts)))
-    print('Conflict count: {}'.format(conflict_count))
-    print('Highest conflict count: {}'.format(max_conflicts))
-    print('Conflict distribution: {}'.format(conflict_map))
+    print('Conflicts: {}'.format(conflicts))
     print('Cost evaluation: {}'.format(cost))
     print('Gain evaluation: {}'.format(gain))
-    # bf_set = set()
-    # for bf, c in enumerate(solution):
-    #     print ('BF=', bf, 'C=', c)
-    # for conflict in conflicts:
-    #     print(conflict)
-    #     for time in conflict[1]:
-    #         bf_set.add(time[0])
-    # for bf_id in bf_set:
-    #     print(bf_id, matrix[solution[bf_id]].sparse_list[bf_id].buffer_duration, solution[bf_id])
-
 
 
 def main(argv):
@@ -54,20 +37,37 @@ def main(argv):
     elif command == 'parse':    # Parse problem instance
         print(json.dumps(_get_instance().get_properties(),
                          indent=4, separators=(',', ': ')))
-    elif command == 'solution':
+    elif command == 'solve':
+        print('Parsing instance...')
         instance = _get_instance()
+        print('Finding initial solution...')
         solution, matrix = find_initial_solution(instance)
-        _print_solution(instance, solution, matrix)
-        print('\nOptimizing solution...\n')
-        hill_climb(instance, solution, matrix)
-        _print_solution(instance, solution, matrix)
+        print('Optimizing solution...')
+        timeline = hill_climb(instance, solution, matrix)
+        conflicts, torpedo_count = timeline.count_conflicts()
+        if sum(conflicts) > 0:
+            print('Resolving conflicts...')
+            resolve_conflicts(instance, solution, matrix)
+            timeline = ConflictTimeline.create(instance, solution, matrix)
+            conflicts, torpedo_count = timeline.count_conflicts()
+        print('Evaluating solution...')
+        _print_solution(instance, solution, matrix,
+                        timeline, conflicts, torpedo_count)
     elif command == 'initial_solution':
+        print('Parsing instance...')
+        instance = _get_instance()
+        print('Finding initial solution...')
+        solution, matrix = find_initial_solution(instance)
+        print('Evaluating initial solution...')
+        timeline = ConflictTimeline.create(instance, solution, matrix)
+        conflicts, torpedo_count = timeline.count_conflicts()
+        _print_solution(instance, solution, matrix,
+                        timeline, conflicts, torpedo_count)
+    elif command == 'print_solution':
         instance = _get_instance()
         solution, matrix = find_initial_solution(instance)
-        _print_solution(instance, solution, matrix)
-    elif command == 'print_initial_solution':
-        instance = _get_instance()
-        solution, matrix = find_initial_solution(instance)
+        hill_climb(instance, solution, matrix)
+        resolve_conflicts(instance, solution, matrix)
         runs, torpedoes = evaluator.calculate_solution_runs(
             instance, solution, matrix)
         print(os.path.basename(argv[1]))

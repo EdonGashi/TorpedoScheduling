@@ -3,6 +3,53 @@ from instance import Instance
 from evaluator import *
 
 
+def resolve_conflicts(instance: Instance, solution, matrix):
+    '''Attempt to resolve full buffer to desulf conflicts.'''
+    timeline = create_solution_timeline(instance, solution, matrix)
+    length = len(timeline)
+    i = 0
+    current_count = 0
+    current_bf = -1
+    while i < length:
+        slot = timeline[i]
+        in_transit = [t[0] for t in slot if t[1] == T_FULL_TO_DESULF]
+        count_in_transit = len(in_transit)
+        if count_in_transit > 2:
+            raise Exception(
+                'Cannot resolve more than two simultaneous transits.')
+        elif count_in_transit == 2:
+            delta = instance.tt_full_buffer_to_desulf - current_count
+            current_schedule = matrix[
+                solution[current_bf]].get_current_schedule()
+            if current_schedule.buffer_duration >= delta:
+                current_schedule.buffer_duration -= delta
+                current_schedule.converter_early_arrival += delta
+            else:
+                new_bf = in_transit[1] if in_transit[
+                    1] != current_bf else in_transit[0]
+                next_schedule = matrix[solution[new_bf]].get_current_schedule()
+                new_delta = instance.tt_full_buffer_to_desulf + delta
+                if next_schedule.buffer_duration >= new_delta:
+                    next_schedule.buffer_duration -= new_delta
+                    next_schedule.converter_early_arrival += new_delta
+                else:
+                    raise Exception(
+                        'Cannot resolve transit conflicts for current configuration.')
+
+            i += delta
+            current_bf = -1
+            current_count = 0
+            continue
+        elif count_in_transit == 1:
+            current_bf = in_transit[0]
+            current_count += 1
+        else:
+            current_bf = -1
+            current_count = 0
+
+        i += 1
+
+
 class ConflictTimeline:
     '''Maintains and mutates a conflict timeline.'''
 
@@ -185,6 +232,7 @@ def hill_climb(instance: Instance, solution, matrix, max_lookahead=32):
         lookahead *= 2
         if lookahead > max_lookahead:
             lookahead = max_lookahead
+    return timeline
 
 
 def find_initial_solution(instance: Instance):
