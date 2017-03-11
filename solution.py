@@ -120,7 +120,9 @@ def hill_climb(instance: Instance, solution, matrix, max_lookahead=32):
         if new_max_torpedoes > max_torpedoes:
             return False
         for i, state in enumerate(new_conflict_map):
-            if state > conflict_map[i]:
+            if i == T_FULL_TO_DESULF:
+                continue
+            elif state > conflict_map[i]:
                 return False
         return True
 
@@ -205,8 +207,12 @@ def hill_climb(instance: Instance, solution, matrix, max_lookahead=32):
         else:
             return False
 
+    if max_lookahead < 0:
+        max_lookahead = len(instance.bf_schedules)
+    else:
+        max_lookahead = min(len(instance.bf_schedules) - 1, max_lookahead)
+
     lookahead = 1
-    max_lookahead = min(len(instance.bf_schedules) - 1, max_lookahead)
     loop = True
     while loop:
         while True:
@@ -216,7 +222,7 @@ def hill_climb(instance: Instance, solution, matrix, max_lookahead=32):
                 domain_size = len(domain)
                 current_index = schedule_map.current_index
                 current_schedule = domain[current_index]
-                for index in range(current_index + 1,
+                for index in range(0,
                                    min(domain_size, current_index + 1 + lookahead)):
                     schedule = domain[index]
                     if _try_swap(current_schedule, schedule):

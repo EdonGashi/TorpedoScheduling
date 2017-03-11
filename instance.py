@@ -54,11 +54,18 @@ class Schedule:
         self.index = -1
 
 
-_SORT_BIAS = [1.6, 1.4, 1.2, 1, 0.4, 0.6, 0.8, 1, 1]
+_SORT_BIAS = [1, 1, 1, 1, 1, 1, 1, 1, 1]
+
+# _SORT_BIAS = [10, 8, 5, 0.7, 0.2, 1.2, 3, 4, 10]  # Instance 1
+# _SORT_BIAS = [5, 4, 3, 0.7, 0.5, 1.2, 2, 3, 5]    # Instance 2
+# _SORT_BIAS = [5, 4, 3, 0.7, 0.7, 1, 2, 3, 5]      # Instance 3
+# _SORT_BIAS = [1, 1, 1, 1, 1, 1, 1, 1, 1]          # Instance 4
+# _SORT_BIAS = [10, 8, 5, 0.7, 0.6, 1.2, 3, 4, 10]  # Instance 5
+# _SORT_BIAS = [4, 3, 2, 0.7, 0.45, 1, 2, 3, 4]     # Instance 6
 
 
 def _sort_value(schedule: Schedule):
-    return schedule.duration
+    return schedule.duration * _SORT_BIAS[schedule.desulf_efficiency + 4]
 
 
 class ScheduleMap:
